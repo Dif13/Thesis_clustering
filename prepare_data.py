@@ -30,59 +30,82 @@ def get_logger(name):
     return def_logger
 
 
-def create_dict_csv(df_name):
+def prepare_csv(df_name, output_file):
+    """
+    If function used separator: '' (ascii-code: 0x1f)
+    :param df_name: csv-file
+    :param output_file: scv-file
+    :return: None
+    """
+
+    df = pd.read_csv(df_name, index_col=0)
+    print(df.head(10))
+    head = ['index', 'keyword_list.0', 'keyword_list.0_split']
+    to_csv = []
+    split = []
+    for i, keyword in enumerate(df['keyword_list.0']):
+        if keyword is np.NaN:
+            split.append(np.NaN)
+            continue
+        comma = keyword.count(', ')
+        semicolon = keyword.count('; ')
+        sep = ', '
+        if comma >= semicolon:
+            pass
+            #sep = ', '
+        elif semicolon > max(comma, 2):
+            sep = '; '
+
+        temp = ''
+        for k in keyword.split(sep=sep):
+            temp += k.strip() + ''
+        if temp:
+            temp = temp[:-1]
+        split.append(temp)
+    print(split[0])
+    df['keyword_list.0'] = split
+
+    df.to_csv(output_file)
+
+
+def create_new_csv(df_name, output_file):
     df_source = pd.read_csv(df_name, sep=',')
     df = pd.DataFrame()
-    df[['keyword_list.0', 'oecds.0']] = df_source[['keyword_list.0', 'oecds.0']]
+    #df[['keyword_list.0', 'oecds.0']] = df_source[['keyword_list.0', 'oecds.0']]
+    df.index.name = 'index'
 
-    for i in range(len(df.index)):
-        if df.loc[i, 'keyword_list.0'] is np.NaN:
-            df.loc[i, 'keyword_list.0'] = ''
-        elif df.loc[i, 'oecds.0'] is np.NaN:
-            df.loc[i, 'oecds.0'] = ''
+    dict_to_replace = {
+        '$': '&',
+        '?': ',',
+        '^': ',',
+        '_': '-',
+        '•': ', ',
+        'Ё': 'Е',
+        'КЛЮЧЕВЫЕ СЛОВА:': ' ',
+        'КЛЮЧЕВЫЕ СЛОВОСОЧЕТАНИЯ:': ' '
+    }
+    list_keyword = []
+    oecds = []
+    for keyword, oecd in zip(df_source['keyword_list.0'], df_source['oecds.0']):
+        if keyword is np.NaN or oecd is np.NaN:
+            #list_keyword.append(np.NaN)
+            continue
+        else:
 
-    #df['keyword_list.0'] = df['keyword_list.0'].map(str.strip)
-    #df['oecds.0'] = df['oecds.0'].map(str.strip)
-    #sorted_key_words = ''
-    sorted_key_words = ', '.join(df['keyword_list.0'].tolist()).upper().replace('.,', ',').replace(';', ',').split(', ')
-    #for word in df['keyword_list.0'].tolist():
-    #    sorted_key_words += word.strip() + ', '
-    #sorted_key_words = sorted_key_words[:-2].upper().replace('.,', ',').replace(';', ',').split(', ')
-    sorted_key_words = list(set(sorted_key_words))
-    sorted_key_words.sort()
-    if sorted_key_words[0] == '':
-        del sorted_key_words[0]
-    for i, word in enumerate(sorted_key_words):
-        sorted_key_words[i] = word.strip()
-    print(len(sorted_key_words))
-    #sorted_clusters = ''
-    sorted_clusters = ', '.join(df['oecds.0'].tolist()).upper().replace('.,', ',').replace(';', ',').split(', ')
-    #for word in df['oecds.0']:
-    #    sorted_clusters += word.strip() + ', '
-    #sorted_clusters = sorted_clusters[:-2].upper().replace('.,', ',').replace(';', ',').split(', ')
-    sorted_clusters = list(set(sorted_clusters))
-    sorted_clusters.sort()
-    if sorted_clusters[0] == '':
-        del sorted_clusters[0]
-    for i, word in enumerate(sorted_clusters):
-        sorted_clusters[i] = word.strip()
-    print(len(sorted_clusters))
-    #df['keyword_list.0'] = df['keyword_list.0']
-    #df['oecds.0'] = df['oecds.0'].map(str.strip)
+            keyword = keyword.strip().upper()
+            for key, value in dict_to_replace.items():
+                keyword = keyword.replace(key, value)
+            if keyword[0] in ',.:;':
+                keyword = keyword[1:]
+            if keyword[-1] in ',.:;':
+                keyword = keyword[:-1]
+        list_keyword.append(keyword.strip())
+        oecds.append(oecd.strip().upper())
 
-    df_sorted_key_words = pd.DataFrame({'keyword_list.0': sorted_key_words})
-    df_sorted_clusters = pd.DataFrame({'oecds.0': sorted_clusters})
-
-    df_sorted_key_words.to_csv(root_dir + "sorted_key_words.csv")
-    df_sorted_clusters.to_csv(root_dir + "sorted_clusters.csv")
-    # TODO: last char is not [A-z][А-я][0-9]"')+-»I  like ,.
-    # TODO: start char is ":"
-    # TODO: Error in parse   ЗВЕЗД, ЛИГА, «ВПЕРЕД, ИТАЛИЯ»
-    # TODO: is in alpha, beta, gamma, delta...
-    # Ё is Е, sometimes ',' but not ', ' #41142 or sep='. ', or "   "
-    # bad sort. Fix smth, but not all.
-    return df
-
+    df['keyword_list.0'] = list_keyword
+    df['oecds.0'] = oecds
+    df = df.reset_index(drop=True)
+    df.to_csv(output_file)
 
 
 def create_test_csv():
@@ -104,21 +127,25 @@ def create_test_csv():
 
 
 def open_explorer():
-    # input_file = easygui.fileopenbox(default=root_dir, filetypes=["*.csv"])
-    input_file = root_dir + "dissertation.csv"
-    #input_file = root_dir + "dissertation_test.csv"
+    input_file = easygui.fileopenbox(default=root_dir, filetypes=["*.csv"])
+    # input_file = root_dir + "dissertation.csv"
+    # input_file = root_dir + "dissertation_test.csv"
+    # input_file = root_dir + "key_words_oecds.csv"
     return input_file
 
 
 def main():
     logger.info(f"Start {__name__}")
     df_name = open_explorer()
-    #create_test_csv()
-    df = create_dict_csv(df_name)
+    output_file = "key_words_oecds.csv"
+    output_file_split = "key_words_oecds_prepared.csv"
+    # create_test_csv()
+    # create_new_csv(df_name, output_file)
+    prepare_csv(output_file, output_file_split)
 
 
 if __name__ == '__main__':
     root_dir = os.path.split(sys.argv[0])[0] + '/'
-    #print(root_dir)
+    # print(root_dir)
     logger = get_logger(__name__)
     main()
