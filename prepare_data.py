@@ -112,7 +112,7 @@ def create_ml_df_key_words_oecds(key_words_oecds_prepared, dict_keywords_file, d
     df_keywords_oecds['keywords_index'] = keywords_index
     df_keywords_oecds['oecd_index'] = oecd_index
     #print(maxlen)
-    #show_bar(maxlen)
+    # show_bar(maxlen)
     df_keywords_oecds.to_csv(key_words_oecds_prepared)
     # return maxlen
     return df_keywords_oecds
@@ -126,13 +126,15 @@ def show_bar(maxlen):
     y = [maxlen[x] for x in range(len(maxlen))]
 
     fig, ax = plt.subplots()
-
+    fig.canvas.set_window_title('Диаграмма количества ключевых слов')
     ax.bar(x, y)
 
     ax.set_facecolor('seashell')
     fig.set_facecolor('floralwhite')
     fig.set_figwidth(12)  # ширина Figure
     fig.set_figheight(6)  # высота Figure
+    ax.set_xlabel('Количество ключевых слов')
+    ax.set_ylabel('Частота использования ключевых слов')
 
     plt.show()
 
