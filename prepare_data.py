@@ -6,7 +6,9 @@ import pandas as pd
 import easygui
 import sys
 import os
-from sklearn.model_selection import train_test_split
+
+import ml
+
 
 
 def get_logger(name):
@@ -41,6 +43,13 @@ def sizeof_fmt(num, suffix='B'):
 
 
 def create_ml_df_key_words_oecds(key_words_oecds_prepared, dict_keywords_file, dict_oecds_file):
+    """
+    Add 2 column in key_words_oecds_prepared: keywords_index and oecd_index
+    :param key_words_oecds_prepared: prepared dataframe file
+    :param dict_keywords_file: dictionary keyword file (with poligonal characteristic)
+    :param dict_oecds_file: dictionary oecds file
+    :return: df_keywords_oecds -> dataframe
+    """
     df_keywords_oecds = pd.read_csv(key_words_oecds_prepared, index_col=0)
     df_dict_keywords = pd.read_csv(dict_keywords_file)
     df_dict_oecds = pd.read_csv(dict_oecds_file)
@@ -115,6 +124,7 @@ def create_ml_df_key_words_oecds(key_words_oecds_prepared, dict_keywords_file, d
     # show_bar(maxlen)
     df_keywords_oecds.to_csv(key_words_oecds_prepared)
     # return maxlen
+    logger.info(f"Done!")
     return df_keywords_oecds
     # """
 
@@ -140,14 +150,15 @@ def show_bar(maxlen):
 
 def prepare_csv(df_name, output_file):
     """
-    If function used separator: '' (ascii-code: 0x1f)
-    :param df_name: csv-file
-    :param output_file: scv-file
+    keyword_list.0 split for , or ;, and use one separator:
+    '' (ascii-code: 0x1f)
+    :param df_name: filtered csv-file
+    :param output_file: prepared scv-file
     :return: None
     """
 
     df = pd.read_csv(df_name, index_col=0)
-    print(df.head(10))
+    # print(df.head(10))
     head = ['index', 'keyword_list.0', 'keyword_list.0_split']
     to_csv = []
     split_keywords = []
@@ -185,13 +196,22 @@ def prepare_csv(df_name, output_file):
     df['keyword_list.0'] = split_keywords
     df['oecds.0'] = split_oecds
     df.to_csv(output_file)
+    logger.info(f"Done!")
+
 
 
 def create_dict(df_name, dict_keywords_file, dict_oecds_file):
     """
-    If function used separator: '' (ascii-code: 0x1f)
+    In function used separator: '' (ascii-code: 0x1f)
+    From df_name (prepared csv-file) create 2 dictionary files: dict_keywords_file,
+    dict_oecds_file. Analog Keras Tokenizer.
+    In dict_keywords_file add column "polygonal_characteristic" with number used keywords
+    on oecds.0.
+    Number position - it`s index from dict_oecds_file.
+
     :param df_name:
-    :param jupdict_file:
+    :param dict_keywords_file:
+    :param dict_oecds_file:
     :return:
     """
     df_source = pd.read_csv(df_name, index_col=0)
@@ -199,7 +219,6 @@ def create_dict(df_name, dict_keywords_file, dict_oecds_file):
     df_dict_oecds = pd.DataFrame()
     list_uniq_keywords = []
     list_uniq_oecds = []
-    polygonal_characteristic = {}
 
     for i, (keywords, oecds) in enumerate(zip(df_source['keyword_list.0'], df_source['oecds.0'])):
         k_split = []
@@ -254,9 +273,19 @@ def create_dict(df_name, dict_keywords_file, dict_oecds_file):
     df_dict_oecds['uniq_oecds'] = list_uniq_oecds
     df_dict_keywords.to_csv(dict_keywords_file)
     df_dict_oecds.to_csv(dict_oecds_file)
+    logger.info(f"Done!")
+
 
 
 def create_new_csv(df_name, output_file):
+    """
+    Create new csv output_file with columns index, keyword_list.0, oecds.0.
+    Remove some char and phrases from keywords.
+
+    :param df_name: source dataframe
+    :param output_file: filtered dataframe
+    :return:
+    """
     df_source = pd.read_csv(df_name)  # , sep=',')
     df = pd.DataFrame()
     # df[['keyword_list.0', 'oecds.0']] = df_source[['keyword_list.0', 'oecds.0']]
@@ -294,6 +323,8 @@ def create_new_csv(df_name, output_file):
     df['oecds.0'] = oecds
     df = df.reset_index(drop=True)
     df.to_csv(output_file)
+    logger.info(f"Done!")
+
 
 
 def create_test_csv():
@@ -313,10 +344,51 @@ def create_test_csv():
                         break
         logger.info(f"Created test csv files: {name_csv_file}")
 
+def show_plot(distribution):
+    import matplotlib.pyplot as plt
+
+    fig, ax = plt.subplots()
+    fig.canvas.set_window_title('Диаграмма количества ключевых слов')
+    ax.bar(distribution.keys(), sorted(distribution.values()))
+
+    ax.set_facecolor('seashell')
+    fig.set_facecolor('floralwhite')
+    fig.set_figwidth(12)  # ширина Figure
+    fig.set_figheight(6)  # высота Figure
+    ax.set_xlabel('Длинна текста')
+    ax.set_ylabel('Частота использования ключевых слов')
+
+    plt.show()
+
+
+def show_distribution(df_name):
+    df = pd.read_csv(df_name, index_col=0)
+    head = 'oecds.0'
+    x = {}
+    for i , oecds in enumerate(df[head]):
+        oecds = oecds.split(sep=chr(0x1f))
+        for oecd in oecds:
+            try:
+                x[oecd] += 1
+            except KeyError:
+                x[oecd] = 1
+    print(len(x))
+    for k, v in x.items():
+        if v <= 10:
+            print(k, v)
+    show_plot(x)
+
+
+
+
 
 def open_explorer():
-    # input_file = easygui.fileopenbox(default=root_dir, filetypes=["*.csv"])
-    input_file = root_dir + "dissertation.csv"
+    """
+    Choose csv-file with data
+    :return: full-path to dataframe
+    """
+    input_file = easygui.fileopenbox(default=root_dir, filetypes=["*.csv"])
+    # input_file = root_dir + "dissertation.csv"
     # input_file = root_dir + "dissertation_test.csv"
     # input_file = root_dir + "key_words_oecds.csv"
     # input_file = root_dir + "key_words_oecds_prepared.csv"
@@ -324,6 +396,14 @@ def open_explorer():
 
 
 def main():
+    """
+    The main function create key_words_oecds_prepared.csv
+    with 5 columns: index, keyword_list.0, oecds.0 from
+    df_name (define in function open_explorer (dissertation.csv))
+    and columns keywords_index and oecd_index from
+    dictionary created in function create_dict
+    :return:
+    """
     logger.info(f"Start {__name__}")
     df_name = open_explorer()
     output_file = root_dir + "key_words_oecds.csv"
@@ -332,10 +412,12 @@ def main():
     dict_oecds_file = root_dir + "dict_oecds.csv"
     ml_df_name = root_dir + "ml_df.csv"
     # create_test_csv()
-    # create_new_csv(df_name, output_file)
-    # prepare_csv(output_file, key_words_oecds_prepared)
-    # create_dict(key_words_oecds_prepared, dict_keywords_file, dict_oecds_file)
+    create_new_csv(df_name, output_file)
+    prepare_csv(output_file, key_words_oecds_prepared)
+    # show_distribution(key_words_oecds_prepared)
+    create_dict(key_words_oecds_prepared, dict_keywords_file, dict_oecds_file)
     create_ml_df_key_words_oecds(key_words_oecds_prepared, dict_keywords_file, dict_oecds_file)
+    # ml.prepare_ml_data(key_words_oecds_prepared, dict_keywords_file, dict_oecds_file)
 
 
 if __name__ == '__main__':
